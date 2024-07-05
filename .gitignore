@@ -1,4 +1,6 @@
 training/logs
 training/checkpoint
 training/pre_train_ckpt
+training/runs
+
 .vscode
