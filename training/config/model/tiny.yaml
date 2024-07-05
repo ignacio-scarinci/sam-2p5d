@@ -1,0 +1,6 @@
+checkpoint: ../pre_train_ckpt/mobile_sam.pt
+sam_base_model: tiny_vit
+mod: sam
+mid_dim: None
+sam_image_size: 1024
+encoder_in_channels: 27
