@@ -194,7 +194,7 @@ def generate_point_prompt(
     return point_coords, point_label
 
 
-def generate_bbox_prompt(batch_labels_, std=0.1, max_pixel=5):
+def generate_bbox_prompt(batch_labels_, std=0.1, max_pixel=20):
     device = batch_labels_.device
     bbox_per_image = []
     b, h, w = batch_labels_.shape

@@ -146,8 +146,8 @@ class Trainer:
             inputs_l = F.pad(inputs_l, pd, "constant", 0)
             labels_l = F.pad(labels_l, pd, "constant", 0)
             _loss = torch.tensor(0.0).to(self.local_rank)
-            for param in self.model.parameters():
-                param.grad = None
+            #for param in self.model.parameters():
+            #    param.grad = None
                 
             for _k in range(self.config.num_patch):
                 # Return random integers from `low` (inclusive) to `high` (exclusive).
@@ -175,14 +175,13 @@ class Trainer:
                     bbox_prob=self.bbox_prob
                 )
                 
-#                for param in self.model.parameters():
-#                    param.grad = None
+                for param in self.model.parameters():
+                    param.grad = None
                 
                 with autocast( enabled=self.config.use_amp):
                     outputs = self.model(data, is_train=True)
                 
-                    loss = self.dice_loss(outputs[0]["low_res_logits"], target)
-                    loss = loss / self.config.num_patch
+                loss = self.dice_loss(outputs[0]["low_res_logits"], target)
 
                 if skip:
                     loss = loss * 0.0
@@ -202,7 +201,7 @@ class Trainer:
 
                 _loss += loss.detach()
             
-            #_loss /= min(self.config.num_patch, n_z_before_pad)
+            _loss /= min(self.config.num_patch, n_z_before_pad)
             if self.config.distributed:
                 loss_list = distributed_all_gather([_loss],out_numpy=True)
                 run_loss.update(np.mean(np.mean(np.stack(loss_list, axis=0), axis=0), axis=0),n=self.config.batch_size * dist.get_world_size())
@@ -221,12 +220,13 @@ class Trainer:
 
     def train_iterative_epoch(self, epoch, dataloader):
         self.model.train()
-        start_time = time.time()
         run_loss = AverageMeter()
         # we need to make sure the number of 2.5D input is an odd number.
         assert self.config.roi_z_iter % 2 == 1
         dataloader.sampler.set_epoch(epoch)
         for idx, batch_data in enumerate(dataloader):
+            start_time = time.time()
+
             # only take 1 batch
             inputs_l = batch_data["image"]
             labels_l = batch_data["label"]
@@ -257,7 +257,6 @@ class Trainer:
                     config=self.config,
                     model=self.model,
                     sam_image_size=self.sam_image_size,
-                    label_prob=self.label_prob,
                     point_prob=self.point_prob,
                     bbox_prob=self.bbox_prob
                 )
@@ -332,14 +331,14 @@ class Trainer:
                             data[0]["point_labels"] = point_labels
 
                 if self.config.use_amp:
-                    self.scaler.scale(loss).backward()
+                    self.scaler.scale(loss).backward() # type: ignore
                     if self.config.clip > -1 : #is not None:
                         self.scaler.unscale_(self.optimizer)
                         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip)
                     self.scaler.step(self.optimizer)
                     self.scaler.update()
                 else:
-                    loss.backward()
+                    loss.backward() # type: ignore
                     if self.config.clip > -1: #is not None:
                         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip)
                     self.optimizer.step()
@@ -362,7 +361,6 @@ class Trainer:
                     "loss: {:.4f}".format(run_loss.avg),
                     "time {:.2f}s".format(time.time() - start_time),
                 )
-            start_time = time.time()
         for param in self.model.parameters():
             param.grad = None
         return run_loss.avg
@@ -375,7 +373,7 @@ class Trainer:
         with torch.no_grad():
             dataloader.sampler.set_epoch(epoch) # type: ignore
             for idx, batch_data in enumerate(dataloader):
-                prompt = random.choices(['label', 'point', 'bbox'], weights=(1.0, 1.0, 1.0), k=1)[0]
+                prompt = random.choices(['point', 'bbox'], weights=(1.0, 1.0), k=1)[0]
                 print(f"Rank: {self.global_rank}, prompt: {prompt}")
                 inputs_l = batch_data["image"]
                 labels_l = batch_data["label"]
@@ -403,9 +401,7 @@ class Trainer:
 
                     # we only need the label for the center slice
                     labels = labels_l[..., start_idx - n_slice // 2 : start_idx + n_slice // 2 + 1][..., n_slice // 2]
-                    if prompt == 'label':
-                        data, target, _ = prepare_sam_val_input_cp_only(inputs.to(self.local_rank), labels.to(self.local_rank))
-                    elif prompt == 'point':
+                    if  prompt == 'point':
                         data, target, _ = prepare_sam_val_input_pp_only(inputs.to(self.local_rank), labels.to(self.local_rank), self.config, self.sam_image_size)
                     elif prompt == 'bbox':
                         data, target, _ = prepare_sam_val_input_bb_only(inputs.to(self.local_rank), labels.to(self.local_rank))
