@@ -2,4 +2,5 @@ training/logs/*
 training/checkpoint/*
 training/pre_train_ckpt/*
 training/runs/*
+training/scripts/*
 .vscode
