@@ -39,12 +39,10 @@ class TrainerConfig:
     tf32: bool 
     save_every: int
     data_loader_workers: int
-    label_prompt: bool
     point_prompt: bool
     bbox_prompt: bool
     point_pos: int | None
     point_neg: int | None
-    label_prompt_warm_up_epoch: int
     iterative_training_warm_up_epoch: int
     num_patch: int
     clip: float
