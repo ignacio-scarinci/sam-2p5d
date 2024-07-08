@@ -549,7 +549,7 @@ class Trainer:
                     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
                     print("~~~~~~~Start validation~~~~~~~\n")
                     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
-                    print(f"label_prompt: {self.config.label_prompt}, point_prompt: {self.config.point_prompt}")
+                    print(f"point_prompt: {self.config.point_prompt}")
                 epoch_time = time.time()
                 val_avg_acc = self.val_epoch(iterative=False, 
                                              dataloader=self.val_loader,
