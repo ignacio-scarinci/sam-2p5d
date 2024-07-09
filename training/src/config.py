@@ -74,3 +74,4 @@ class Snapshot:
     optimizer_state: Dict[str, Any]
     scheduler_state: Optional[Dict[str, Any]]
     finished_epoch: int
+    best_acc: float

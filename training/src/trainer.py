@@ -70,6 +70,7 @@ class Trainer:
         # load snapshot if available. only necessary on the first node.
         if self.config.snapshot_path is None:
             self.config.snapshot_path = os.path.join(self.config.logdir, self.experiment_name,"snapshot.pt")
+        self.best_acc = 0.0
         self._load_snapshot()
         
         # initialize DDP
@@ -104,12 +105,12 @@ class Trainer:
                 snapshot_data = torch.load(f, map_location="cpu") # type: ignore
         except FileNotFoundError:
             print("Snapshot not found. Training model from scratch")
-            return 
 
         snapshot = Snapshot(**snapshot_data)
         self.model.load_state_dict(snapshot.model_state)
         self.optimizer.load_state_dict(snapshot.optimizer_state)
         self.epochs_run = snapshot.finished_epoch
+        self.best_acc = snapshot.best_acc
         print(f"Resuming training from snapshot at Epoch {self.epochs_run}")
 
     
@@ -446,7 +447,7 @@ class Trainer:
                 start_time = time.time()
         return run_acc.avg
 
-    def _save_snapshot(self, epoch):
+    def _save_snapshot(self, epoch, best_acc):
         # capture snapshot
         model = self.model
         raw_model = model.module if hasattr(model, "module") else model
@@ -454,7 +455,8 @@ class Trainer:
             model_state=raw_model.state_dict(), # type: ignore
             optimizer_state=self.optimizer.state_dict(),
             finished_epoch=epoch,
-            scheduler_state=self.scheduler.state_dict() if self.scheduler is not None else None
+            scheduler_state=self.scheduler.state_dict() if self.scheduler is not None else None,
+            best_acc=best_acc
         )
         # save snapshot
         snapshot = asdict(snapshot)
@@ -499,16 +501,16 @@ class Trainer:
         15. Prints the final training results, including the best validation accuracy and best epoch.
 
         Parameters:
-        None
+        None    
 
         Returns:
         None
         """
-        val_acc_max = 0.0
+        val_acc_max = self.best_acc
         best_epoch = -1
         val_MA = None
         best_log = {}
-        best_loss = 2.0
+        best_loss = 1000.0
         for epoch in range(self.epochs_run, self.config.max_epochs):
             torch.cuda.synchronize()
             if self.config.distributed:
@@ -592,9 +594,8 @@ class Trainer:
                     with open(os.path.join(self.config.logdir, "best_log.json"), "w") as f:
                         json.dump(best_log, f)
                         
-            if self.local_rank == 0 and (epoch % self.save_every == 0 or epoch == self.config.max_epochs - 1 or train_loss < best_loss):
-                    self._save_snapshot(epoch)
-                    best_loss = train_loss
+            if self.local_rank == 0 and (epoch % self.save_every == 0 or epoch == self.config.max_epochs - 1):
+                    self._save_snapshot(epoch, val_acc_max)
             
             if self.local_rank == 0 and (train_loss < best_loss):
                 self.save_checkpoint(
@@ -607,6 +608,7 @@ class Trainer:
                     optimizer=self.optimizer,
                     scheduler=self.scheduler,
                 )
+                best_loss = train_loss
 
             if self.scheduler is not None:
                 self.scheduler.step()

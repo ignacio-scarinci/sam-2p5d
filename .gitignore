@@ -4,3 +4,6 @@ training/pre_train_ckpt/*
 training/runs/*
 training/scripts/*
 .vscode
+training/testing.ipynb
+training/prompt.ipynb
+training/src/__pycache__
