@@ -45,7 +45,7 @@ trainer:
   skip_bk: True
   max_points: 9
   roi_z_iter: 9
-  num_iterative_step: 11
+  num_iterative_step: 5
   no_more_points_for_cp_only: False
   num_patch_val: 30
   val_every: 2
