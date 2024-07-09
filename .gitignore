@@ -6,4 +6,4 @@ training/scripts/*
 .vscode
 training/testing.ipynb
 training/prompt.ipynb
-training/src/__pycache__
+training/src/__pycache__/*
