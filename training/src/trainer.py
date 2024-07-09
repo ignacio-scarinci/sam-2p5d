@@ -105,7 +105,7 @@ class Trainer:
                 snapshot_data = torch.load(f, map_location="cpu") # type: ignore
         except FileNotFoundError:
             print("Snapshot not found. Training model from scratch")
-
+            return
         snapshot = Snapshot(**snapshot_data)
         self.model.load_state_dict(snapshot.model_state)
         self.optimizer.load_state_dict(snapshot.optimizer_state)
