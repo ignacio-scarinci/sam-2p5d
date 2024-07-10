@@ -603,7 +603,7 @@ class Trainer:
                     epoch,
                     self.config,
                     filename="model_best_loss.pt",
-                    best_acc=val_avg_acc,
+                    best_acc=val_acc_max,
                     loss=train_loss,
                     optimizer=self.optimizer,
                     scheduler=self.scheduler,
