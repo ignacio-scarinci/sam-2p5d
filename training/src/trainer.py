@@ -527,14 +527,14 @@ class Trainer:
                     
 
             
-            if epoch > self.config.iterative_training_warm_up_epoch:
-                if self.global_rank == 0:
-                    print("Iterative training\n")
-                train_loss = self.train_iterative_epoch(epoch, self.train_loader)
-            else:
-                print(f"GPU {self.global_rank}  Single-Step Training\n")
-                train_loss = self.train_epoch(epoch, self.train_loader)
-
+            #if epoch > self.config.iterative_training_warm_up_epoch:
+            #    if self.global_rank == 0:
+            #        print("Iterative training\n")
+            #    train_loss = self.train_iterative_epoch(epoch, self.train_loader)
+            #else:
+            #    print(f"GPU {self.global_rank}  Single-Step Training\n")
+            #    train_loss = self.train_epoch(epoch, self.train_loader)
+            train_loss = self.train_epoch(epoch, self.train_loader)
             if self.global_rank == 0:
                 print(
                     "Final training  {}/{}".format(epoch, self.config.max_epochs - 1),

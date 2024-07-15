@@ -21,6 +21,8 @@ from monai.transforms import (
     LoadImaged,
     Orientationd,
     Rotate90d,
+    RandGaussianNoised,
+    RandGaussianSmoothd,
     RandShiftIntensityd,
     RemoveSmallObjectsd,
     RandRotated,
@@ -28,6 +30,7 @@ from monai.transforms import (
     ScaleIntensityd,
     ClipIntensityPercentilesd,
     Spacingd,
+    OneOf,
 )
 from torch.utils.data.distributed import DistributedSampler
 import torch.distributed as dist
@@ -71,6 +74,13 @@ def get_dataset(
                     min_size=100,
                     connectivity=8,
                 ),
+                OneOf(
+                    transforms=[
+                        Rotate90d(keys=["image", "label"], k=0, spatial_axes=(0, 1)),
+                        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(1, 2)),
+                        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(0, 2)),
+                    ],
+                ),
                 RandRotated(
                     keys=["image", "label"],
                     prob=0.25,
@@ -88,6 +98,8 @@ def get_dataset(
                     offsets=0.25,
                     prob=0.25,
                 ),
+                RandGaussianNoised(keys=["image"], prob=0.15, std=0.01),
+                RandGaussianSmoothd(keys=["image"], prob=0.15, sigma_x=(0.5, 1.15), sigma_y=(0.5, 1.15),sigma_z=(0.5, 1.15)),
             ]
         )
 
@@ -102,20 +114,27 @@ def get_dataset(
                     pixdim=(1.5, 1.5, 1.5),
                     mode=("bilinear", "nearest"),
                 ),
-                #ScaleIntensityRanged(
+                # ScaleIntensityRanged(
                 #    keys=["image"],
                 #    a_min=data_cfg.a_min,
                 #    a_max=data_cfg.a_max,
                 #    b_min=data_cfg.b_min,
                 #    b_max=data_cfg.b_max,
                 #    clip=True,
-                #),
+                # ),
                 ClipIntensityPercentilesd(keys=["image"], lower=0.5, upper=99.5),
                 ScaleIntensityd(keys=["image"], minv=0.0, maxv=1.0),
                 RemoveSmallObjectsd(
                     keys=["label"],
                     min_size=100,
                     connectivity=8,
+                ),
+                OneOf(
+                    transforms=[
+                        Rotate90d(keys=["image", "label"], k=0, spatial_axes=(0, 1)),
+                        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(1, 2)),
+                        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(0, 2)),
+                    ],
                 ),
             ]
         )

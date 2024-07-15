@@ -17,7 +17,7 @@ optimizer:
   momentum: 0
   reg_weight: 0.1
   scheduler: cosine
-  t0: 20
+  t0: 25
   tmult: 1
   e_min: 0.000001
 
@@ -25,7 +25,7 @@ optimizer:
 trainer:
   experiment_name: ???
   seed: 5344
-  max_epochs: 40
+  max_epochs: 50
   batch_size: 1
   logdir: ../runs/${trainer.experiment_name}/
   snapshot_path: ../runs/${trainer.experiment_name}/snapshot
