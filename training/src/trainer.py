@@ -594,10 +594,10 @@ class Trainer:
                     with open(os.path.join(self.config.logdir, "best_log.json"), "w") as f:
                         json.dump(best_log, f)
                         
-            if self.local_rank == 0 and (epoch % self.save_every == 0 or epoch == self.config.max_epochs - 1):
+            if self.global_rank == 0 and (epoch % self.save_every == 0 or epoch == self.config.max_epochs - 1):
                     self._save_snapshot(epoch, val_acc_max)
             
-            if self.local_rank == 0 and (train_loss < best_loss):
+            if self.global_rank == 0 and (train_loss < best_loss):
                 self.save_checkpoint(
                     self.model,
                     epoch,
