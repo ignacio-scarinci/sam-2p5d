@@ -62,7 +62,7 @@ def optimizer_setup(model, opt_config: OptimizerConfig, mod):
     
 
 def get_train_objs(model_cfg: SamConfig, opt_cfg: OptimizerConfig, data_cfg: DataConfig):
-    train_files, val_files, _ = split_data(data_cfg)
+    train_files, val_files = split_data(data_cfg)
     train_ds, val_ds = get_dataset(train_files=train_files, val_files=val_files, data_cfg=data_cfg)
 
     model = sam_model_registry[model_cfg.sam_base_model](

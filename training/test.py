@@ -8,18 +8,18 @@ from omegaconf import DictConfig
 from dataclasses import dataclass
 
 from src.tester import Tester
-from src.data import split_data, get_dataset
+from src.data import test_files, get_dataset
 from src.model import sam_model_registry
-from src.config import TrainerConfig, SamConfig, DataConfig
+from src.config import TestConfig, SamConfig, DataConfig
 import numpy as np
 
     
 def get_test_objs(
-    model_cfg: SamConfig, data_cfg: DataConfig
+    model_cfg: SamConfig, data_cfg: TestConfig
 ):
-    _, _, test_files = split_data(data_cfg)
+    test_fs, labels = test_files(data_cfg)
     test_ds = get_dataset(
-        test_files=test_files, data_cfg=data_cfg, test=True
+        test_files=test_fs, data_cfg=data_cfg, test=True
     )
 
     model = sam_model_registry[model_cfg.sam_base_model](
@@ -30,34 +30,34 @@ def get_test_objs(
     )
 
 
-    return model, test_ds
+    return model, test_ds, labels
 
 
 @hydra.main(version_base=None, config_path="./config", config_name="config_test")
 def main(cfg: DictConfig):
     np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True)
     print("INICIO")
-    trainer_cfg = TrainerConfig(**cfg["trainer"])
+    test_cfg = TestConfig(**cfg["test"])
 
     torch.backends.cudnn.benchmark = True
-    if trainer_cfg.tf32:
+    if test_cfg.tf32:
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
 
     model_cfg = SamConfig(**cfg["model"])
-    data_cfg = DataConfig(**cfg["data"])
 
-    model, test_data= get_test_objs(
-        model_cfg, data_cfg
+    model, test_data, labels= get_test_objs(
+        model_cfg, test_cfg
     )
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tester = Tester(
         device=device,
-        tester_cfg=trainer_cfg,
+        tester_cfg=test_cfg,
         model=model,
         sam_image_size=model_cfg.sam_image_size,
         test_dataset=test_data, # type: ignore
+        labels=labels
     )
     tester.test()
 

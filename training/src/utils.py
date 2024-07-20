@@ -129,14 +129,23 @@ def generate_point_prompt(
     Returns:
         tuple: Point coordinates and point labels.
     """
-    max_point = config.max_points
 
     # Number of positive and negative points
-    Np = points_pos if points_pos is not None else min(
-        max_point, int(np.abs(random.gauss(mu=0, sigma=max_point // 2))) + 1
+    Np = (
+        points_pos
+        if points_pos is not None
+        else min(
+            config.max_points,
+            int(np.abs(random.gauss(mu=0, sigma=config.max_points // 2))) + 1,
+        )
     )
-    Nn = points_neg if points_neg is not None else min(
-        max_point, int(np.abs(random.gauss(mu=0, sigma=max_point // 2)))
+    Nn = (
+        points_neg
+        if points_neg is not None
+        else min(
+            config.max_points,
+            int(np.abs(random.gauss(mu=0, sigma=config.max_points // 2))),
+        )
     )
 
     _point = []  # Point coordinates

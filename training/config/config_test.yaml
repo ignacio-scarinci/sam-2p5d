@@ -2,53 +2,23 @@ defaults:
   - model: tiny
   - _self_
 
-data:
-  data_dir: /home/iscarinci/total_liifa
-  json_list: /home/iscarinci/total_liifa/dataset.json
-  splitval: 0.1
-  a_min: -1024
-  a_max: 1024
-  b_min: 0
-  b_max: 1
-
-optimizer:
-  optim_name: AdamW
-  optim_lr: 0.000005
-  momentum: 0
-  reg_weight: 1e-5
-
-trainer:
-  experiment_name: ???
-  seed: 5344
-  max_epochs: 50
-  batch_size: 1
-  logdir: /home/iscarinci/SAM-2p5D/training/runs/${trainer.experiment_name}/
-  snapshot_path: /home/iscarinci/SAM-2p5D/training/runs/${trainer.experiment_name}/snapshot
+test:
+  experiment_name: liifa
+  logdir: /Users/ignacio.scarinci/Dataset/total_liifa
+  data_dir: /Users/ignacio.scarinci/Dataset/total_liifa
+  json_list: /Users/ignacio.scarinci/Dataset/total_liifa/dataset.json
+  weight: /Users/ignacio.scarinci/Doctorado/SAM-2p5D/training/checkpoint/model_best.pt
   use_amp: True
   tf32: True
-  save_every: 5
-  data_loader_workers: 8
-  label_prompt: True
+  data_loader_workers: 1
   point_prompt: True
-  bbox_prompt: True
-  point_pos: None
-  point_neg: None
-  label_prompt_warm_up_epoch: 15
-  iterative_training_warm_up_epoch: 30
-  num_patch: 24
-  num_prompt: 32
-  clip: -1
-  distributed: True
-  skip_bk: True
-  max_points: 8
+  bbox_prompt: False
+  point_pos: 3
+  point_neg: 1
   roi_z_iter: 9
-  num_iterative_step: 5
-  no_more_points_for_cp_only: False
-  num_patch_val: 30
-  val_every: 2
-  save_checkpoint: True
+  axis: axial
 
 hydra:
   run:
-    dir: /home/iscarinci/SAM-2p5D/training/runs/${trainer.experiment_name}/test
+    dir: /Users/ignacio.scarinci/Doctorado/SAM-2p5D/training/runs/${test.experiment_name}/test
 

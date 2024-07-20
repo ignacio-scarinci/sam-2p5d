@@ -35,13 +35,13 @@ from monai.transforms import (
 from torch.utils.data.distributed import DistributedSampler
 import torch.distributed as dist
 import torch.multiprocessing as mp
-from .config import DataConfig
+from .config import DataConfig, TestConfig
 import json
 
 
 
 def get_dataset(
-    data_cfg: DataConfig,
+    data_cfg: DataConfig | TestConfig,
     train_files: Optional[List] = None,
     val_files: Optional[List] = None,
     test_files: Optional[List] = None,
@@ -52,13 +52,13 @@ def get_dataset(
             [
                 LoadImaged(keys=["image", "label"], image_only=True),
                 EnsureChannelFirstd(keys=["image", "label"]),
-                Orientationd(keys=["image", "label"], axcodes="RAS"),
-                Rotate90d(keys=["image", "label"], k=1),
-                Spacingd(
-                    keys=["image", "label"],
-                    pixdim=(1.5, 1.5, 1.5),
-                    mode=("bilinear", "nearest"),
-                ),
+                Orientationd(keys=["image", "label"], axcodes="RAI"),
+                #Rotate90d(keys=["image", "label"], k=1),
+                #Spacingd(
+                #    keys=["image", "label"],
+                #    pixdim=(1.5, 1.5, 1.5),
+                #    mode=("bilinear", "nearest"),
+                #),
                 #ScaleIntensityRanged(
                 #    keys=["image"],
                 #    a_min=data_cfg.a_min,
@@ -74,13 +74,13 @@ def get_dataset(
                     min_size=100,
                     connectivity=8,
                 ),
-                OneOf(
-                    transforms=[
-                        Rotate90d(keys=["image", "label"], k=0, spatial_axes=(0, 1)),
-                        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(1, 2)),
-                        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(0, 2)),
-                    ],
-                ),
+                #OneOf(
+                #    transforms=[
+                #        Rotate90d(keys=["image", "label"], k=0, spatial_axes=(0, 1)),
+                #        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(1, 2)),
+                #        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(0, 2)),
+                #    ],
+                #),
                 RandRotated(
                     keys=["image", "label"],
                     prob=0.25,
@@ -107,13 +107,13 @@ def get_dataset(
             [
                 LoadImaged(keys=["image", "label"], image_only=True),
                 EnsureChannelFirstd(keys=["image", "label"]),
-                Orientationd(keys=["image", "label"], axcodes="RAS"),
-                Rotate90d(keys=["image", "label"], k=1),
-                Spacingd(
-                    keys=["image", "label"],
-                    pixdim=(1.5, 1.5, 1.5),
-                    mode=("bilinear", "nearest"),
-                ),
+                Orientationd(keys=["image", "label"], axcodes="RAI"),
+                #Rotate90d(keys=["image", "label"], k=1),
+                #Spacingd(
+                #    keys=["image", "label"],
+                #    pixdim=(1.5, 1.5, 1.5),
+                #    mode=("bilinear", "nearest"),
+                #),
                 # ScaleIntensityRanged(
                 #    keys=["image"],
                 #    a_min=data_cfg.a_min,
@@ -129,13 +129,13 @@ def get_dataset(
                     min_size=100,
                     connectivity=8,
                 ),
-                OneOf(
-                    transforms=[
-                        Rotate90d(keys=["image", "label"], k=0, spatial_axes=(0, 1)),
-                        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(1, 2)),
-                        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(0, 2)),
-                    ],
-                ),
+                #OneOf(
+                #    transforms=[
+                #        Rotate90d(keys=["image", "label"], k=0, spatial_axes=(0, 1)),
+                #        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(1, 2)),
+                #        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(0, 2)),
+                #    ],
+                #),
             ]
         )
 
@@ -170,13 +170,12 @@ def get_dataset(
                     pixdim=(1.5, 1.5, 1.5),
                     mode=("bilinear", "nearest"),
                 ),
-                ScaleIntensityRanged(
-                    keys=["image"],
-                    a_min=data_cfg.a_min,
-                    a_max=data_cfg.a_max,
-                    b_min=data_cfg.b_min,
-                    b_max=data_cfg.b_max,
-                    clip=True,
+                ClipIntensityPercentilesd(keys=["image"], lower=0.5, upper=99.5),
+                ScaleIntensityd(keys=["image"], minv=0.0, maxv=1.0),
+                RemoveSmallObjectsd(
+                    keys=["label"],
+                    min_size=100,
+                    connectivity=8,
                 ),
             ]
         )
@@ -239,6 +238,18 @@ def split_data(data_cfg: DataConfig):
         files.append({"image": str_img, "label": str_seg})
     val_files = copy.deepcopy(files)
 
+    return train_files, val_files
+
+
+
+def test_files(data_cfg: TestConfig):
+    data_dir = data_cfg.data_dir
+
+    with open(data_cfg.json_list, "r") as f:
+        json_data = json.load(f)
+        list_test = json_data["testing"]
+        labels = json_data["labels"]
+
     files = []
     for _i in range(len(list_test)):
         str_img = os.path.join(data_dir, list_test[_i]["image"])
@@ -249,4 +260,4 @@ def split_data(data_cfg: DataConfig):
 
         files.append({"image": str_img, "label": str_seg})
     test_files = copy.deepcopy(files)
-    return train_files, val_files, test_files
+    return test_files, labels

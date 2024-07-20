@@ -10,3 +10,8 @@ training/scripts/*
 __pycache__/
 *.py[cod]
 *.DS_Store
+training/config/config_test.yaml
+training/src/__pycache__/config.cpython-311.pyc
+training/src/__pycache__/data.cpython-311.pyc
+training/src/__pycache__/trainer.cpython-311.pyc
+training/src/__pycache__/utils.cpython-311.pyc

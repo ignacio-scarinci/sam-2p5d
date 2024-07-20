@@ -57,6 +57,23 @@ class TrainerConfig:
     val_every: int
     save_checkpoint: bool
 
+@dataclass
+class TestConfig:
+    experiment_name: str
+    logdir: str
+    data_dir: str
+    json_list: str
+    weight: str
+    use_amp: bool
+    tf32: bool
+    data_loader_workers: int
+    point_prompt: bool
+    bbox_prompt: bool
+    point_pos: int | None
+    point_neg: int | None
+    roi_z_iter: int
+    axis: str
+
 
 @dataclass
 class DataConfig:
