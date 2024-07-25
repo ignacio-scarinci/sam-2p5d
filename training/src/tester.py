@@ -117,14 +117,6 @@ class Tester:
                 self.files = self.files.split("/")[-1][:-7]
                 print(f"File: {self.files}")
 
-                # TODO: revisar que sea correcta la permutacion
-                if self.config.axis == "sagital":
-                    inputs_l = inputs_l.permute(2, 0, 1)
-                    labels_l = labels_l.permute(2, 0, 1)
-                elif self.config.axis == "coronal":
-                    inputs_l = inputs_l.permute(2, 1, 0)
-                    labels_l = labels_l.permute(2, 1, 0)
-
                 # Creo un tensor de zeros para la segmentacion
                 segmentation = torch.zeros((num_labels, 1, *labels_l.shape))
                 targets_total = torch.zeros((num_labels, 1, *labels_l.shape))
