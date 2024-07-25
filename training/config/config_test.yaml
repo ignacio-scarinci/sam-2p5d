@@ -16,7 +16,6 @@ test:
   point_pos: 3
   point_neg: 1
   roi_z_iter: 9
-  axis: axial
 
 hydra:
   run:

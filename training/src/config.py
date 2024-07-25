@@ -72,8 +72,6 @@ class TestConfig:
     point_pos: int | None
     point_neg: int | None
     roi_z_iter: int
-    axis: str
-
 
 @dataclass
 class DataConfig:
