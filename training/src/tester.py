@@ -171,15 +171,14 @@ class Tester:
                 )
                 hausdorsff = hausdorsff.tolist()
                 acc_mean = acc_sum / not_nans
+                acc_per_label = dict(zip(self.labels, acc_per_label.tolist()))
                 self.save_predictions(segmentation)
-                print(f"Mean Dice: {acc_mean}")
+                print(f"Mean Dice: {acc_mean} \n Dice per label: {acc_per_label}")
                 results.append(
                     {
                         "Image": self.files,
                         "Dice_mean": acc_mean,
-                        "dice_per_label": dict(
-                            zip(self.labels, acc_per_label.tolist())
-                        ),
+                        "dice_per_label": acc_per_label,
                         "Hausdorff_distance": dict(zip(self.labels, hausdorsff)),
                     }
                 )
