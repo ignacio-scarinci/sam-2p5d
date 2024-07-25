@@ -164,12 +164,12 @@ def get_dataset(
             [
                 LoadImaged(keys=["image", "label"], image_only=True),
                 EnsureChannelFirstd(keys=["image", "label"]),
-                Orientationd(keys=["image", "label"], axcodes="RAS"),
-                Spacingd(
-                    keys=["image", "label"],
-                    pixdim=(1.5, 1.5, 1.5),
-                    mode=("bilinear", "nearest"),
-                ),
+                Orientationd(keys=["image", "label"], axcodes="RAI"),
+                #Spacingd(
+                #    keys=["image", "label"],
+                #    pixdim=(1.5, 1.5, 1.5),
+                #    mode=("bilinear", "nearest"),
+                #),
                 ClipIntensityPercentilesd(keys=["image"], lower=0.5, upper=99.5),
                 ScaleIntensityd(keys=["image"], minv=0.0, maxv=1.0),
                 RemoveSmallObjectsd(
@@ -187,7 +187,6 @@ def get_dataset(
 
 def split_data(data_cfg: DataConfig):
     data_dir = data_cfg.data_dir
-    
 
     with open(data_cfg.json_list, "r") as f:
         json_data = json.load(f)
@@ -199,9 +198,10 @@ def split_data(data_cfg: DataConfig):
     else:
         list_train = json_data["training"]
         list_test = json_data["testing"]
-        
+
         list_train = sorted(list_train, key=lambda x: x["image"])
         import random
+
         random.seed(12345)
         random.shuffle(list_train)
         l_val = int(len(list_train) * data_cfg.splitval)
@@ -241,7 +241,6 @@ def split_data(data_cfg: DataConfig):
     return train_files, val_files
 
 
-
 def test_files(data_cfg: TestConfig):
     data_dir = data_cfg.data_dir
 
@@ -260,4 +259,5 @@ def test_files(data_cfg: TestConfig):
 
         files.append({"image": str_img, "label": str_seg})
     test_files = copy.deepcopy(files)
+    labels = list(labels.keys())
     return test_files, labels

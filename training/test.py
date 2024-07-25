@@ -13,14 +13,10 @@ from src.model import sam_model_registry
 from src.config import TestConfig, SamConfig, DataConfig
 import numpy as np
 
-    
-def get_test_objs(
-    model_cfg: SamConfig, data_cfg: TestConfig
-):
+
+def get_test_objs(model_cfg: SamConfig, data_cfg: TestConfig):
     test_fs, labels = test_files(data_cfg)
-    test_ds = get_dataset(
-        test_files=test_fs, data_cfg=data_cfg, test=True
-    )
+    test_ds = get_dataset(test_files=test_fs, data_cfg=data_cfg, test=True)
 
     model = sam_model_registry[model_cfg.sam_base_model](
         checkpoint=None,
@@ -28,7 +24,6 @@ def get_test_objs(
         encoder_in_chans=model_cfg.encoder_in_channels,
         mod=model_cfg.mod,
     )
-
 
     return model, test_ds, labels
 
@@ -46,20 +41,19 @@ def main(cfg: DictConfig):
 
     model_cfg = SamConfig(**cfg["model"])
 
-    model, test_data, labels= get_test_objs(
-        model_cfg, test_cfg
-    )
-    
+    model, test_data, labels = get_test_objs(model_cfg, test_cfg)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tester = Tester(
         device=device,
         tester_cfg=test_cfg,
         model=model,
         sam_image_size=model_cfg.sam_image_size,
-        test_dataset=test_data, # type: ignore
-        labels=labels
+        test_dataset=test_data,  # type: ignore
+        labels=labels,
     )
     tester.test()
+
 
 if __name__ == "__main__":
     main()
