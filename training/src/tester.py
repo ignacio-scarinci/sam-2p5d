@@ -118,8 +118,8 @@ class Tester:
                 print(f"File: {self.files}")
 
                 # Creo un tensor de zeros para la segmentacion
-                segmentation = torch.zeros((num_labels, 1, *labels_l.shape))
-                targets_total = torch.zeros((num_labels, 1, *labels_l.shape))
+                segmentation = torch.zeros((num_labels, 1, *labels_l.shape), device=self.device)
+                #targets_total = torch.zeros((num_labels, 1, *labels_l.shape))
 
                 n_slices = self.config.roi_z_iter
                 # pad the z direction, so we can easily extract 2.5D input and predict labels for the center slice
@@ -159,15 +159,15 @@ class Tester:
                     segmentation[..., idx - n_slices // 2] = self.post_pred(
                         outputs[0]["high_res_logits"]
                     )  # type: ignore
-                    targets_total[..., idx - n_slices // 2] = target
-
-                acc_per_label = compute_dice(segmentation, targets_total)
+                    #targets_total[..., idx - n_slices // 2] = target
+                labels_l = labels_l[..., n_slices // 2:-n_slices // 2]
+                acc_per_label = compute_dice(segmentation, labels_l)
                 acc_sum = torch.nansum(acc_per_label).item()
                 not_nans = (
                     num_labels - torch.sum(torch.isnan(acc_per_label).float()).item()
                 )
                 hausdorsff = compute_hausdorff_distance(
-                    segmentation, targets_total, spacing=1.5, percentile=95
+                    segmentation, labels_l, spacing=1.5, percentile=95
                 )
                 hausdorsff = hausdorsff.tolist()
                 acc_mean = acc_sum / not_nans
