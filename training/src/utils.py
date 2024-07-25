@@ -293,7 +293,7 @@ def prepare_sam_training_input(inputs, labels, config, model, sam_image_size, po
     ).float()
 
     if config.distributed:
-        batch_labels = model.module.preprocess(batch_labels_, is_input=False)
+        batch_labels = model.module.preprocess(batch_labels_, is_input=False) # la lleva a image_size // 4 
     else:
         batch_labels = model.preprocess(batch_labels_, is_input=False)
 
@@ -303,7 +303,7 @@ def prepare_sam_training_input(inputs, labels, config, model, sam_image_size, po
     
 
     if prompt == 'bbox':
-        bbox_prompt = generate_bbox_prompt(batch_labels)
+        bbox_prompt = generate_bbox_prompt(batch_labels_)
         prepared_input[0].update({"boxes": bbox_prompt})
     elif prompt == 'point':
         point_coords, point_labels = generate_point_prompt(batch_labels_, config=config, sam_image_size=sam_image_size)
