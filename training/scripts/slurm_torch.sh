@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=tiny
+#SBATCH --job-name=tiny_prueba
 #SBATCH --nodes=2
 #SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=20
