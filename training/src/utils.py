@@ -87,28 +87,18 @@ def apply_coords_torch(coords, original_size, sam_image_size):
     Expects a numpy array of length 2 in the final dimension. Requires the
     original image size in (H, W) format.
     """
-    old = original_size
-    new = sam_image_size
-    coords = deepcopy(coords).float()
-    # Here, we can apply a same scale factor to h and w, because we first pad the input to a square image along the
-    # longest side then resize it to sam_image_size. In other words, the scale factor is determined by the longest side.
-    coords[..., 0] = coords[..., 0] * (new / old)
-    coords[..., 1] = coords[..., 1] * (new / old)
+    scale = sam_image_size / original_size
+    coords[:, :2] *= scale
     return coords
 
 
 def apply_coords_bbox(coords, original_size, sam_image_size):
-    old = original_size
-    new = sam_image_size
-    coords = deepcopy(coords).float()
-    # Here, we can apply a same scale factor to h and w, because we first pad the input to a square image along the
-    return coords * (new / old)
+    scale = sam_image_size / original_size
+    return coords * scale
 
 
 def sample_points(labelpoints, n_points):
-    idx = torch.randperm(len(labelpoints), dtype=torch.long, device=labelpoints.device)[
-        :n_points
-    ]
+    idx = torch.randint(0, len(labelpoints), (n_points,), device=labelpoints.device)
     return [labelpoints[idx]]
 
 
@@ -203,7 +193,7 @@ def generate_point_prompt(
     return point_coords, point_label
 
 
-def generate_bbox_prompt(batch_labels_, std=0.1, max_pixel=20):
+def generate_bbox_prompt(batch_labels_, sam_image_size, std=0.1, max_pixel=20):
     device = batch_labels_.device
     bbox_per_image = []
     b, h, w = batch_labels_.shape
@@ -248,7 +238,7 @@ def generate_bbox_prompt(batch_labels_, std=0.1, max_pixel=20):
             box[0], box[1] = x0 + noise_x, y0 + noise_y
             box[2], box[3] = x1 + noise_x, y1 + noise_y
         bbox_per_image[i, ...] = box
-    return apply_coords_bbox(bbox_per_image, original_size=max(h,w), sam_image_size=1024)
+    return apply_coords_bbox(bbox_per_image, original_size=max(h,w), sam_image_size=sam_image_size)
     #return bbox_per_image
 
 
@@ -303,7 +293,7 @@ def prepare_sam_training_input(inputs, labels, config, model, sam_image_size, po
     
 
     if prompt == 'bbox':
-        bbox_prompt = generate_bbox_prompt(batch_labels_)
+        bbox_prompt = generate_bbox_prompt(batch_labels_, sam_image_size=sam_image_size)
         prepared_input[0].update({"boxes": bbox_prompt})
     elif prompt == 'point':
         point_coords, point_labels = generate_point_prompt(batch_labels_, config=config, sam_image_size=sam_image_size)
