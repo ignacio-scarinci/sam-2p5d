@@ -31,7 +31,7 @@ export LOGLEVEL=INFO
 #export HYDRA_FULL_ERROR=1
 
 srun torchrun \
---nnodes 2 \
+--nnodes 1 \
 --nproc_per_node 2 \
 --rdzv_id $RANDOM \
 --rdzv_backend c10d \

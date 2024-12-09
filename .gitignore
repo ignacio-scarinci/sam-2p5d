@@ -17,3 +17,4 @@ training/src/__pycache__/trainer.cpython-311.pyc
 training/src/__pycache__/utils.cpython-311.pyc
 training/src/.ipynb_checkpoints
 training/src/model/__pycache__
+training/scripts/slurm_torch.sh
