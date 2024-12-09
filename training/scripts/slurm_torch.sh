@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --job-name=tiny_prueba2
-#SBATCH --nodes=1
+#SBATCH --nodes=2
 #SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=20
 #SBATCH --partition=multi
@@ -31,7 +31,7 @@ export LOGLEVEL=INFO
 #export HYDRA_FULL_ERROR=1
 
 srun torchrun \
---nnodes 1 \
+--nnodes 2 \
 --nproc_per_node 2 \
 --rdzv_id $RANDOM \
 --rdzv_backend c10d \

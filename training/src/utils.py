@@ -98,7 +98,10 @@ def apply_coords_bbox(coords, original_size, sam_image_size):
 
 
 def sample_points(labelpoints, n_points):
-    idx = torch.randint(0, len(labelpoints), (n_points,), device=labelpoints.device)
+#    idx = torch.randint(0, len(labelpoints), (n_points,), device=labelpoints.device)
+    idx = torch.randperm(len(labelpoints), dtype=torch.long, device=labelpoints.device)[
+        :n_points
+    ]
     return [labelpoints[idx]]
 
 
