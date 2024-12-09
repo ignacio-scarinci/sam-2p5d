@@ -150,13 +150,13 @@ def get_dataset(
         #            cache_num=150,
         #            num_workers=0,
         #        )
-        train_ds = data.PersistentDataset(data=train_files, transform=train_transform, cache_dir='/home/iscarinci/total_liifa_cache')
+        train_ds = data.PersistentDataset(data=train_files, transform=train_transform, cache_dir='/scratch/iscarinci/total_liifa_cache')
             
         #val_ds = data.Dataset(data=val_files, transform=val_transform)
         val_ds = data.PersistentDataset(
             data=val_files,
             transform=val_transform,
-            cache_dir="/home/iscarinci/total_liifa_cache",
+            cache_dir="/scratch/iscarinci/total_liifa_cache",
         )
         return train_ds, val_ds
     else:
