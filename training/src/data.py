@@ -141,7 +141,7 @@ def get_dataset(
 
 
         #if use_normal_dataset:
-        #    train_ds = data.Dataset(data=train_files, transform=train_transform)
+        train_ds = data.Dataset(data=train_files, transform=train_transform)
         #else:
         #train_ds = data.CacheDataset(
         #            data=train_files,
@@ -150,7 +150,7 @@ def get_dataset(
         #            cache_num=150,
         #            num_workers=0,
         #        )
-        train_ds = data.PersistentDataset(data=train_files, transform=train_transform, cache_dir='/scratch/iscarinci/total_liifa_cache')
+        #train_ds = data.PersistentDataset(data=train_files, transform=train_transform, cache_dir='/scratch/iscarinci/total_liifa_cache')
             
         #val_ds = data.Dataset(data=val_files, transform=val_transform)
         val_ds = data.PersistentDataset(
