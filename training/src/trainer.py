@@ -251,8 +251,9 @@ class Trainer:
                         )
                     elif prompt_type == 'bbox':
                         data, target, _ = prepare_sam_val_input_bb_only(
-                            input_slices.to(self.local_rank),
-                            label_slice.to(self.local_rank)
+                            inputs=input_slices.to(self.local_rank),
+                            sam_image_size=self.sam_image_size,
+                            labels=label_slice.to(self.local_rank)
                         )
 
                     with autocast(enabled=self.config.use_amp):

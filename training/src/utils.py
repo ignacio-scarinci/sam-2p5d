@@ -325,7 +325,7 @@ def prepare_sam_val_input_pp_only(inputs, labels, config, sam_image_size, point_
 
     return prepared_input, batch_labels.unsqueeze(1).to(device), unique_labels
 
-def prepare_sam_val_input_bb_only(inputs, labels):
+def prepare_sam_val_input_bb_only(inputs, sam_image_size, labels):
     # Don't exclude background in val but will ignore it in metric calculation
     device = labels.device
     unique_labels = torch.tensor([i for i in range(1, 115)]).to(device)
@@ -346,7 +346,7 @@ def prepare_sam_val_input_bb_only(inputs, labels):
 
     prepared_input = [{"image": inputs, "original_size": tuple(labels.shape)}]
 
-    bbox_prompt = generate_bbox_prompt(batch_labels, std=0.1, max_pixel=5)
+    bbox_prompt = generate_bbox_prompt(batch_labels, sam_image_size=sam_image_size, std=0.1, max_pixel=5)
     prepared_input[0].update({"boxes": bbox_prompt})
 
     return prepared_input, batch_labels.unsqueeze(1).to(device), unique_labels
