@@ -5,7 +5,7 @@ defaults:
 data:
   data_dir: /home/iscarinci/total_liifa
   json_list: /home/iscarinci/total_liifa/dataset.json
-  splitval: 0.1
+  splitval: 0.2
   a_min: -1024
   a_max: 1024
   b_min: 0
@@ -15,17 +15,16 @@ optimizer:
   optim_name: AdamW
   optim_lr: 0.0001
   momentum: 0
-  reg_weight: 0.1
+  reg_weight: 0.00001
   scheduler: cosine
-  t0: 25
+  t0: 41
   tmult: 1
-  e_min: 0.000001
-
+  e_min: 1.0e-06
 
 trainer:
   experiment_name: ???
-  seed: 5344
-  max_epochs: 50
+  seed: 34587
+  max_epochs: 80
   batch_size: 1
   logdir: ../runs/${trainer.experiment_name}/
   snapshot_path: ../runs/${trainer.experiment_name}/snapshot
@@ -37,7 +36,9 @@ trainer:
   bbox_prompt: True
   point_pos: None
   point_neg: None
-  iterative_training_warm_up_epoch: 20
+  point_prob: 0.5
+  bbox_prob: 0.5
+  iterative_training_warm_up_epoch: 30
   num_patch: 24
   num_prompt: 32
   clip: -1

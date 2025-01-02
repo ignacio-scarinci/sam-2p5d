@@ -31,6 +31,7 @@ from monai.transforms import (
     ClipIntensityPercentilesd,
     Spacingd,
     OneOf,
+    EnsureTyped
 )
 from torch.utils.data.distributed import DistributedSampler
 import torch.distributed as dist
@@ -78,9 +79,10 @@ def get_dataset(
                 #    transforms=[
                 #        Rotate90d(keys=["image", "label"], k=0, spatial_axes=(0, 1)),
                 #        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(1, 2)),
-                #        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(0, 2)),
+                #        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(1, 0)),
                 #    ],
                 #),
+               # EnsureTyped(keys=["image", "label"], device=dist.get_rank()),
                 RandRotated(
                     keys=["image", "label"],
                     prob=0.25,
@@ -133,7 +135,7 @@ def get_dataset(
                 #    transforms=[
                 #        Rotate90d(keys=["image", "label"], k=0, spatial_axes=(0, 1)),
                 #        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(1, 2)),
-                #        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(0, 2)),
+                #        Rotate90d(keys=["image", "label"], k=1, spatial_axes=(1, 0)),
                 #    ],
                 #),
             ]
@@ -143,21 +145,34 @@ def get_dataset(
         #if use_normal_dataset:
         #train_ds = data.Dataset(data=train_files, transform=train_transform)
         #else:
-        #train_ds = data.CacheDataset(
-        #            data=train_files,
-        #            transform=train_transform,
-        #            # cache_rate=1,
-        #            cache_num=150,
-        #            num_workers=0,
-        #        )
-        train_ds = data.PersistentDataset(data=train_files, transform=train_transform, cache_dir='/scratch/iscarinci/total_liifa_cache')
-            
-        #val_ds = data.Dataset(data=val_files, transform=val_transform)
-        val_ds = data.PersistentDataset(
-            data=val_files,
-            transform=val_transform,
-            cache_dir="/scratch/iscarinci/total_liifa_cache",
-        )
+        data_part = data.partition_dataset(
+        data=train_files,
+        num_partitions=dist.get_world_size(),
+        shuffle=True,
+        even_divisible=True,
+        )[dist.get_rank()]
+        
+        train_ds = data.CacheDataset(
+                    data=data_part,
+                    transform=train_transform,
+                    cache_rate=1,
+                    #cache_num=80,
+                    num_workers=0,
+                )
+        #train_ds = data.PersistentDataset(data=train_files, transform=train_transform, cache_dir='/scratch/iscarinci/total_liifa_cache')
+        
+        data_part = data.partition_dataset(
+        data=val_files,
+        num_partitions=dist.get_world_size(),
+        shuffle=True,
+        even_divisible=True,
+        )[dist.get_rank()]
+        val_ds = data.Dataset(data=data_part, transform=val_transform)
+        #val_ds = data.PersistentDataset(
+        #    data=val_files,
+        #    transform=val_transform,
+        #    cache_dir="/scratch/iscarinci/total_liifa_cache",
+        #)
         return train_ds, val_ds
     else:
         test_transform = transforms.Compose(

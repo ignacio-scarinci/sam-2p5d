@@ -3,7 +3,8 @@ from typing import Optional
 
 import hydra
 import torch
-from torch.distributed import init_process_group, destroy_process_group
+#from torch.distributed import init_process_group, destroy_process_group
+import torch.distributed as dist
 from omegaconf import DictConfig
 from dataclasses import dataclass
 
@@ -13,11 +14,13 @@ from src.model import sam_model_registry
 from src.config import TrainerConfig, OptimizerConfig, SamConfig, DataConfig
 import numpy as np
 
+from monai.optimizers import WarmupCosineSchedule
 from monai.utils import set_determinism
 
 
 def ddp_setup():
-    init_process_group(backend="nccl")
+    dist.init_process_group(backend="nccl")
+    dist.barrier()
     torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
 
 
@@ -52,18 +55,22 @@ def optimizer_setup(model, opt_config: OptimizerConfig, mod):
         raise ValueError("Unsupported Optimization Procedure: " + str(opt_config.optim_name))
 
     if opt_config.scheduler == "cosine":
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer, opt_config.t0, T_mult=opt_config.tmult, eta_min=opt_config.e_min,
-        )
+#        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+#           optimizer, opt_config.t0, T_mult=opt_config.tmult, eta_min=opt_config.e_min,
+#        )
+        scheduler = WarmupCosineSchedule(optimizer=optimizer, warmup_steps=0, warmup_multiplier=0.1, t_total=opt_config.t0)
     else:
         scheduler = None
     
     return optimizer, scheduler
-    
 
-def get_train_objs(model_cfg: SamConfig, opt_cfg: OptimizerConfig, data_cfg: DataConfig):
+def get_train_data(data_cfg: DataConfig):
     train_files, val_files = split_data(data_cfg)
     train_ds, val_ds = get_dataset(train_files=train_files, val_files=val_files, data_cfg=data_cfg)
+    return train_ds, val_ds
+
+def get_train_objs(model_cfg: SamConfig, opt_cfg: OptimizerConfig):
+
 
     model = sam_model_registry[model_cfg.sam_base_model](
         checkpoint=model_cfg.checkpoint,
@@ -74,53 +81,52 @@ def get_train_objs(model_cfg: SamConfig, opt_cfg: OptimizerConfig, data_cfg: Dat
     
     optimizer, scheduler = optimizer_setup(model, opt_cfg, model_cfg.mod)
 
-    if int(os.environ["RANK"]) == 0:
-        pytorch_total_params = sum(p.numel() for p in model.parameters())
-        print("Total parameters count", pytorch_total_params * 1.0e-6, "M\n")
-        pytorch_total_params = sum(
-            p.numel() for p in model.parameters() if p.requires_grad
-        )
-        print("Total trainable parameters count", pytorch_total_params * 1.0e-6, "M\n")
-        pytorch_total_params = sum(p.numel() for p in model.image_encoder.parameters())
-        print(
-            "Total image encoder parameters count", pytorch_total_params * 1.0e-6, "M\n"
-        )
-        pytorch_total_params = sum(
-            p.numel() for p in model.image_encoder.parameters() if p.requires_grad
-        )
-        print(
-            "Total trainable image encoder parameters count",
-            pytorch_total_params * 1.0e-6,
-            "M\n",
-        )
-        pytorch_total_params = sum(p.numel() for p in model.mask_decoder.parameters())
-        print(
-            "Total mask decoder parameters count", pytorch_total_params * 1.0e-6, "M\n"
-        )
-        pytorch_total_params = sum(
-            p.numel() for p in model.mask_decoder.parameters() if p.requires_grad
-        )
-        print(
-            "Total trainable mask decoder parameters count",
-            pytorch_total_params * 1.0e-6,
-            "M\n",
-        )
-        pytorch_total_params = sum(p.numel() for p in model.prompt_encoder.parameters())
-        print(
-            "Total prompt encoder parameters count",
-            pytorch_total_params * 1.0e-6,
-            "M\n",
-        )
-        pytorch_total_params = sum(
-            p.numel() for p in model.prompt_encoder.parameters() if p.requires_grad
-        )
-        print(
-            "Total trainable prompt encoder parameters count",
-            pytorch_total_params * 1.0e-6,
-            "M\n",
-        )
-
-    return model, optimizer, scheduler, train_ds, val_ds
+    # if dist.get_rank()  == 0:
+    #     pytorch_total_params = sum(p.numel() for p in model.parameters())
+    #     print("Total parameters count", pytorch_total_params * 1.0e-6, "M\n")
+    #     pytorch_total_params = sum(
+    #         p.numel() for p in model.parameters() if p.requires_grad
+    #     )
+    #     print("Total trainable parameters count", pytorch_total_params * 1.0e-6, "M\n")
+    #     pytorch_total_params = sum(p.numel() for p in model.image_encoder.parameters())
+    #     print(
+    #         "Total image encoder parameters count", pytorch_total_params * 1.0e-6, "M\n"
+    #     )
+    #     pytorch_total_params = sum(
+    #         p.numel() for p in model.image_encoder.parameters() if p.requires_grad
+    #     )
+    #     print(
+    #         "Total trainable image encoder parameters count",
+    #         pytorch_total_params * 1.0e-6,
+    #         "M\n",
+    #     )
+    #     pytorch_total_params = sum(p.numel() for p in model.mask_decoder.parameters())
+    #     print(
+    #         "Total mask decoder parameters count", pytorch_total_params * 1.0e-6, "M\n"
+    #     )
+    #     pytorch_total_params = sum(
+    #         p.numel() for p in model.mask_decoder.parameters() if p.requires_grad
+    #     )
+    #     print(
+    #         "Total trainable mask decoder parameters count",
+    #         pytorch_total_params * 1.0e-6,
+    #         "M\n",
+    #     )
+    #     pytorch_total_params = sum(p.numel() for p in model.prompt_encoder.parameters())
+    #     print(
+    #         "Total prompt encoder parameters count",
+    #         pytorch_total_params * 1.0e-6,
+    #         "M\n",
+    #     )
+    #     pytorch_total_params = sum(
+    #         p.numel() for p in model.prompt_encoder.parameters() if p.requires_grad
+    #     )
+    #     print(
+    #         "Total trainable prompt encoder parameters count",
+    #         pytorch_total_params * 1.0e-6,
+    #         "M\n",
+    #     )
+    return model, optimizer, scheduler
 
 
 @hydra.main(version_base=None, config_path="./config", config_name="config")
@@ -141,8 +147,11 @@ def main(cfg: DictConfig):
     data_cfg = DataConfig(**cfg['data'])
     
     
-    model, optimizer, scheduler, train_data, val_data = get_train_objs(model_cfg, opt_cfg, data_cfg)
+    model, optimizer, scheduler = get_train_objs(model_cfg, opt_cfg)
+    
     ddp_setup()
+    
+    train_data, val_data = get_train_data(data_cfg=data_cfg)
     trainer = Trainer(trainer_cfg=trainer_cfg, 
                       model=model, 
                       mod=model_cfg.mod ,
@@ -153,7 +162,7 @@ def main(cfg: DictConfig):
                       scheduler=scheduler)
     trainer.train()
     
-    destroy_process_group()
+    dist.destroy_process_group()
     
 if __name__ == "__main__":
     main()

@@ -43,6 +43,8 @@ class TrainerConfig:
     bbox_prompt: bool
     point_pos: int | None
     point_neg: int | None
+    point_prob: float
+    bbox_prob: float
     iterative_training_warm_up_epoch: int
     num_patch: int
     clip: float

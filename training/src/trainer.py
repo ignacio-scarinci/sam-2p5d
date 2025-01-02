@@ -44,13 +44,11 @@ class Trainer:
         self.mod = mod
         self.sam_image_size = sam_image_size
         
-
-        self.point_prob = 0.5
-        self.bbox_prob = 0.5
-
         # set torchrun variables
         self.local_rank = int(os.environ["LOCAL_RANK"])
-        self.global_rank = int(os.environ["RANK"])  
+        self.global_rank = int(os.environ["RANK"])      
+        self.world_size = int(os.environ["WORLD_SIZE"])
+        self.device = (f"cuda:{self.local_rank}")
         
         #data stuff
         self.train_loader = self._prepare_dataloader(train_dataset)
@@ -58,7 +56,7 @@ class Trainer:
         
         #initialize train states
         self.epochs_run = 0
-        self.model = model.to(self.local_rank)
+        self.model = model.to(self.device)
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.save_every = self.config.save_every
@@ -74,9 +72,10 @@ class Trainer:
         self._load_snapshot()
         
         # initialize DDP
-        self.model = DDP(self.model, device_ids=[self.local_rank], find_unused_parameters=True)
+        self.model = DDP(self.model, device_ids=[self.device], find_unused_parameters=True)
         
-        self.dice_loss = DiceCELoss(sigmoid=True)
+        self.dice_loss = DiceCELoss(include_background=False,smooth_nr=0,
+                                    sigmoid=True, squared_pred=True)
         #self.dice_loss = FocalDiceloss_IoULoss()
         self.post_label = AsDiscrete(to_onehot=115)
         self.post_pred = Compose([Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
@@ -93,9 +92,9 @@ class Trainer:
             dataset=dataset,
             batch_size=self.config.batch_size,
             pin_memory=True,
-            shuffle=False,
-            num_workers=self.config.data_loader_workers,
-            sampler=DistributedSampler(dataset),
+            shuffle=True,
+            num_workers=0,
+        #    sampler=DistributedSampler(dataset, shuffle=True),
         )
     
     def _load_snapshot(self):
@@ -128,14 +127,19 @@ class Trainer:
         self.model.train()
         epoch_loss = AverageMeter()
         assert self.config.roi_z_iter % 2 == 1
-        dataloader.sampler.set_epoch(epoch)  # type: ignore
+        # dataloader.sampler.set_epoch(epoch)  # type: ignore
 
         for batch_idx, batch in enumerate(dataloader):
             start_time = time.time()
+            
+            images = batch['image'].to(self.device)
+            labels = batch["label"].to(self.device)
 
             # Process batch
-            images = batch["image"].squeeze()
-            labels = batch["label"].squeeze()
+            #images = batch["image"].squeeze()
+            #labels = batch["label"].squeeze()
+            images = images.squeeze()
+            labels = labels.squeeze()
             z_dim = labels.shape[-1]
 
             slice_count = self.config.roi_z_iter
@@ -143,7 +147,7 @@ class Trainer:
             images = F.pad(images, padding, "constant", 0)
             labels = F.pad(labels, padding, "constant", 0)
 
-            batch_loss = torch.tensor(0.0, device=self.local_rank)
+            batch_loss = torch.tensor(0.0, device=self.device)
 
             for _ in range(self.config.num_patch):
                 start_idx = np.random.randint(low=slice_count // 2, high=(slice_count // 2 + z_dim))
@@ -156,17 +160,17 @@ class Trainer:
                 ][..., slice_count // 2]
 
                 data, target, _, skip = prepare_sam_training_input(
-                    inputs=input_slices.to(self.local_rank),
-                    labels=label_slices.to(self.local_rank),
+                    inputs=input_slices, #.to(self.local_rank),
+                    labels=label_slices, #.to(self.local_rank),
                     config=self.config,
                     model=self.model,
                     sam_image_size=self.sam_image_size,
-                    point_prob=self.point_prob,
-                    bbox_prob=self.bbox_prob,
-                )
-
+                    point_prob=self.config.point_prob,
+                    bbox_prob=self.config.bbox_prob,
+                ) 
                 # Zero gradients
-                self.optimizer.zero_grad()
+                for param in self.model.parameters():
+                    param.grad = None
 
                 with autocast(enabled=self.config.use_amp):
                     outputs = self.model(data, is_train=True)
@@ -203,8 +207,143 @@ class Trainer:
                 print(f"Epoch {epoch}/{self.config.max_epochs} {batch_idx}/{len(dataloader)}",
                       f"loss: {epoch_loss.avg:.4f}",
                       f"time: {time.time() - start_time:.2f}s")
-
+            for param in self.model.parameters():
+                param.grad = None
         return epoch_loss.avg
+
+    def train_epoch_iterative(self, dataloader, epoch):
+        self.model.train()
+        start_time = time.time()
+        run_loss = AverageMeter()
+        # we need to make sure the number of 2.5D input is an odd number.
+        assert self.config.roi_z_iter % 2 == 1
+        #dataloader.sampler.set_epoch(epoch)  # type: ignore
+        for idx, batch_data in enumerate(dataloader):
+            # only take 1 batch
+            inputs_l = batch_data["image"].to(self.device)
+            labels_l = batch_data["label"].to(self.device)
+            # TODO: we only support batch_size = 1 for data loader.
+            inputs_l = inputs_l.squeeze()
+            labels_l = labels_l.squeeze()
+            n_z_before_pad = labels_l.shape[-1]
+
+            n_slice = self.config.roi_z_iter
+            # pad the z direction, so we can easily extract 2.5D input and predict labels for the center slice
+            pd = (n_slice // 2, n_slice // 2)
+            inputs_l = F.pad(inputs_l, pd, "constant", 0)
+            labels_l = F.pad(labels_l, pd, "constant", 0)
+            _loss = torch.tensor(0.0, device=self.local_rank)
+            for _k in range(min(self.config.num_patch, n_z_before_pad)):
+                # Return random integers from `low` (inclusive) to `high` (exclusive).
+                start_idx = int(np.random.randint(low=n_slice // 2, high=(n_slice // 2 + n_z_before_pad)))
+
+                inputs = inputs_l[..., start_idx - n_slice // 2 : start_idx + n_slice // 2 + 1].permute(2, 0, 1)
+
+                # we only need the label for the center slice
+                labels = labels_l[..., start_idx - n_slice // 2 : start_idx + n_slice // 2 + 1][..., n_slice // 2]
+
+                data, target, target_original, skip = prepare_sam_training_input(
+                        inputs=inputs, # .to(self.local_rank),
+                        labels=labels, # .to(self.local_rank),
+                        config=self.config,
+                        model=self.model,
+                        sam_image_size=self.sam_image_size,
+                        point_prob=self.config.point_prob,
+                        bbox_prob=self.config.bbox_prob,
+                    )
+                for param in self.model.parameters():
+                    param.grad = None
+
+                with autocast(enabled=self.config.use_amp):
+                    if self.config.distributed:
+                        image_embeddings = self.model.module.get_image_embeddings(data)
+                    else:
+                        image_embeddings = self.model.get_image_embeddings(data)
+
+                if skip:
+                    with autocast(enabled=self.config.use_amp):
+                        if self.config.distributed:
+                            outputs = self.model.module.get_mask_prediction(data, image_embeddings)
+                        else:
+                            outputs = self.model.get_mask_prediction(data, image_embeddings)
+                    loss = self.dice_loss(outputs[0]["low_res_logits"], target) * 0.0
+                else:
+                    # iterative training
+                    loss = 0
+                    drop_iter = random.randint(0, self.config.num_iterative_step - 2)
+                    for i in range(self.config.num_iterative_step):
+                        with autocast(enabled=self.config.use_amp):
+                            if self.config.distributed:
+                                outputs = self.model.module.get_mask_prediction(data, image_embeddings)
+                            else:
+                                outputs = self.model.get_mask_prediction(data, image_embeddings)
+                        loss += self.dice_loss(outputs[0]["low_res_logits"], target)
+                        if i == self.config.num_iterative_step - 1:
+                            # no need to perform the following operations after the last step
+                            continue
+                        # we also supply the mask prediction from the previous iteration
+                        # as an additional prompt to our model (follow original SAM).
+                        data[0]["mask_inputs"] = outputs[0]["low_res_logits"].detach()
+                        if i == drop_iter:
+                            # for drop iter, no additional points are sampled (follow original SAM).
+                            continue
+
+                        previous_point_coords = data[0].get("point_coords", None)
+                        previous_point_labels = data[0].get("point_labels", None)
+
+                        if previous_point_coords is None and self.config.no_more_points_for_cp_only:
+                            # if no point prompt at the first prompt generation,
+                            # we will not add more additional pointa during iterative training.
+                            continue
+
+                        # sample one pos and on neg point based on previous prediction
+                        previous_pred = (F.sigmoid(outputs[0]["high_res_logits"].detach()) > 0.5).float()
+                        point_coords, point_labels = generate_point_prompt(
+                            target_original, sam_image_size=self.sam_image_size, config=self.config, points_pos=1, points_neg=1, previous_pred=previous_pred
+                        )
+
+                        if previous_point_coords is not None:
+                            data[0]["point_coords"] = torch.cat([previous_point_coords, point_coords], dim=1)
+                            data[0]["point_labels"] = torch.cat([previous_point_labels, point_labels], dim=1)
+                        else:
+                            data[0]["point_coords"] = point_coords
+                            data[0]["point_labels"] = point_labels
+
+                if self.config.use_amp:
+                    self.scaler.scale(loss).backward()
+                    if self.config.clip > -1.0:
+                        self.scaler.unscale_(self.optimizer)
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip)
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                else:
+                    loss.backward()
+                    if self.config.clip > -1.0:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip)
+                    self.optimizer.step()
+
+                _loss += loss.detach() / self.config.num_iterative_step
+            _loss /= min(self.config.num_patch, n_z_before_pad)
+            if self.config.distributed:
+                loss_list = distributed_all_gather(
+                    [_loss],
+                    out_numpy=True,
+                )
+                run_loss.update(
+                    np.mean(np.mean(np.stack(loss_list, axis=0), axis=0), axis=0), n=self.config.batch_size * dist.get_world_size()
+                )
+            else:
+                run_loss.update(_loss.item(), n=self.config.num_patch)
+            if self.global_rank == 0:
+                print(
+                    "Epoch {}/{} {}/{}".format(epoch, self.config.max_epochs, idx, len(dataloader)),
+                    "loss: {:.4f}".format(run_loss.avg),
+                    "time {:.2f}s".format(time.time() - start_time),
+                )
+            start_time = time.time()
+        for param in self.model.parameters():
+            param.grad = None
+        return run_loss.avg
     
     def val_epoch(self, epoch: int, dataloader: DataLoader, iterative: bool = False):
         self.model.eval()
@@ -212,13 +351,13 @@ class Trainer:
         val_start_time = time.time()
         
         with torch.no_grad():
-            dataloader.sampler.set_epoch(epoch)  # type: ignore
+            # dataloader.sampler.set_epoch(epoch)  # type: ignore
             for batch_index, batch_data in enumerate(dataloader):
                 prompt_type = random.choice(['point', 'bbox'])
                 print(f"Rank: {self.global_rank}, Prompt: {prompt_type}")
                 
-                images = batch_data["image"].squeeze()
-                labels = batch_data["label"].squeeze()
+                images = batch_data["image"].to(self.device).squeeze()
+                labels = batch_data["label"].to(self.device).squeeze()
                 
                 slice_count = self.config.roi_z_iter
                 pad_size = (slice_count // 2, slice_count // 2)
@@ -244,16 +383,16 @@ class Trainer:
 
                     if prompt_type == 'point':
                         data, target, _ = prepare_sam_val_input_pp_only(
-                            input_slices.to(self.local_rank),
-                            label_slice.to(self.local_rank),
+                            input_slices, #.to(self.local_rank),
+                            label_slice, #.to(self.local_rank),
                             self.config,
                             self.sam_image_size
                         )
                     elif prompt_type == 'bbox':
                         data, target, _ = prepare_sam_val_input_bb_only(
-                            inputs=input_slices.to(self.local_rank),
+                            inputs=input_slices, #.to(self.local_rank),
                             sam_image_size=self.sam_image_size,
-                            labels=label_slice.to(self.local_rank)
+                            labels=label_slice, #.to(self.local_rank)
                         )
 
                     with autocast(enabled=self.config.use_amp):
@@ -374,7 +513,17 @@ class Trainer:
                 else:
                     print(f"Current LR: {self.optimizer.param_groups[0]['lr']}")
                     
-            train_loss = self.train_epoch(epoch, self.train_loader)
+
+            
+            if epoch > self.config.iterative_training_warm_up_epoch:
+                if self.global_rank == 0:
+                    print("Iterative Training: Reuse image embedding!")
+                train_loss = self.train_epoch_iterative(self.train_loader, epoch=epoch)
+            else:
+                print(f" Rank: {self.local_rank} Single-step Training")
+                train_loss = self.train_epoch(epoch, self.train_loader)
+            
+            
             if self.global_rank == 0:
                 print(
                     "Final training  {}/{}".format(epoch, self.config.max_epochs - 1),

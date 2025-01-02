@@ -1,14 +1,13 @@
 #!/bin/bash
 
-#SBATCH --job-name=tiny_prueba2
-#SBATCH --nodes=2
-#SBATCH --gres=gpu:2
-#SBATCH --cpus-per-task=20
+#SBATCH --job-name=Final
+#SBATCH --nodes=4
+#SBATCH --gpus-per-node=2
 #SBATCH --partition=multi
 #SBATCH --output=../logs/%x-%j.out
 #SBATCH --error=../logs/%x-%j.err
 #SBATCH --time=2-00:00:00
-
+#SBATCH --qos=expedite
 . /etc/profile
 module purge
 
@@ -31,7 +30,7 @@ export LOGLEVEL=INFO
 #export HYDRA_FULL_ERROR=1
 
 srun torchrun \
---nnodes 2 \
+--nnodes 4 \
 --nproc_per_node 2 \
 --rdzv_id $RANDOM \
 --rdzv_backend c10d \

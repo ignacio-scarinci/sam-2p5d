@@ -81,20 +81,29 @@ def distributed_all_gather(
             tensor_list_out.append(gather_list)
     return tensor_list_out
 
-
+    #scale = sam_image_size / torch.tensor(original_size, dtype=torch.float, device=coords.device)
+    #coords[:, :2] *= scale.to(dtype=coords.dtype)
+    #eturn coords
+    
 def apply_coords_torch(coords, original_size, sam_image_size):
     """
     Expects a numpy array of length 2 in the final dimension. Requires the
     original image size in (H, W) format.
     """
-    scale = sam_image_size / original_size
-    coords[:, :2] *= scale
-    return coords
+    old = original_size
+    new = sam_image_size
+    coords = deepcopy(coords).float()
+    # Here, we can apply a same scale factor to h and w, because we first pad the input to a square image along the
+    # longest side then resize it to sam_image_size. In other words, the scale factor is determined by the longest side.
+    coords[..., 0] = coords[..., 0] * (new / old)
+    coords[..., 1] = coords[..., 1] * (new / old)
+    return coords.round()
 
 
 def apply_coords_bbox(coords, original_size, sam_image_size):
     scale = sam_image_size / original_size
-    return coords * scale
+    coords *= scale 
+    return coords.round()
 
 
 def sample_points(labelpoints, n_points):
@@ -124,22 +133,24 @@ def generate_point_prompt(
     """
 
     # Number of positive and negative points
-    Np = (
-        points_pos
-        if points_pos is not None
-        else min(
-            config.max_points,
-            int(np.abs(random.gauss(mu=0, sigma=config.max_points // 2))) + 1,
-        )
-    )
-    Nn = (
-        points_neg
-        if points_neg is not None
-        else min(
-            config.max_points,
-            int(np.abs(random.gauss(mu=0, sigma=config.max_points // 2))),
-        )
-    )
+#    Np = (
+#        points_pos
+#        if points_pos is not None
+#        else min(
+#            config.max_points,
+#            int(np.abs(random.gauss(mu=0, sigma=config.max_points // 2))) + 1,
+#        )
+#    )
+#    Nn = (
+#        points_neg
+#        if points_neg is not None
+#        else min(
+#            config.max_points,
+#            int(np.abs(random.gauss(mu=0, sigma=config.max_points // 2))),
+#        )
+#    )
+    Np = ( points_pos if points_pos is not None else np.random.randint(1, config.max_points))
+    Nn = ( points_neg if points_neg is not None else np.random.randint(1, config.max_points))
 
     _point = []  # Point coordinates
     _point_label = []  # Point labels
@@ -306,7 +317,7 @@ def prepare_sam_training_input(inputs, labels, config, model, sam_image_size, po
     return prepared_input, batch_labels.unsqueeze(1).to(device), batch_labels_, False
 
 
-def prepare_sam_val_input_pp_only(inputs, labels, config, sam_image_size, point_pos=None, point_neg=None):
+def prepare_sam_val_input_pp_only(inputs, labels, config, sam_image_size, point_pos=3, point_neg=1):
     # Don't exclude background in val but will ignore it in metric calculation
     device = labels.device
     unique_labels = torch.tensor([i for i in range(1, 115)]).to(device)
